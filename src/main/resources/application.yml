@@ -1,0 +1,40 @@
+logging:
+  level:
+    root: info
+    io:
+      netty:
+        handler:
+          ssl: error
+    reactor:
+      netty:
+        http:
+          client: error
+
+aggressionStopperSettings:
+  httpClientSettings:
+    proxy:
+      enabled: false
+      #HTTP, SOCKS4, SOCKS5
+      proxyType: HTTP
+      host: 127.0.0.1
+      port: 8080
+      username:
+      password:
+      connectTimeoutMillis: 10000
+    connectionKeepAlive: true
+    connectTimeoutMillis: 1000
+    responseTimeoutMillis: 1000
+    readTimeoutMillis: 1000
+    writeTimeoutMillis: 1000
+  requestCount: 1000
+  requestRetryCount: 5
+  requestsRepeatCount: 30
+  parallelism: 1000
+  commonExecutionTimeoutMillis: 36000
+  requestsDelayMillis: 1000
+  logEachItemNumber: 500
+  threadCount: 20
+  uris:
+   - https://192.168.0.5
+   - https://localhost
+   - https://localhost10
