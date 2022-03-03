@@ -1,0 +1,11 @@
+version: '2.1'
+services:
+    agression-stopper:
+        image: openjdk:17-ea-14-alpine
+        container_name: agression-stopper
+        hostname: agression-stopper
+        volumes:
+           - ./:/opt/as/
+        entrypoint: ["/opt/as/run-in-container.sh"]
+        working_dir: /opt/as
+        restart: unless-stopped
