@@ -1,31 +1,23 @@
 package net.cyberkatyusha.aggressionstopper;
 
-import io.netty.channel.ChannelOption;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.netty.handler.timeout.ReadTimeoutHandler;
-import io.netty.handler.timeout.WriteTimeoutHandler;
 import net.cyberkatyusha.aggressionstopper.config.AggressionStopperSettings;
+import net.cyberkatyusha.aggressionstopper.model.HttpClientRequestData;
 import net.cyberkatyusha.aggressionstopper.model.RequestExecutionResult;
+import net.cyberkatyusha.aggressionstopper.model.RequestFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
-import reactor.netty.http.client.HttpClient;
 
-import javax.net.ssl.SSLException;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,79 +35,142 @@ public class AggressionsStopperService {
 
         logger.info("Execution started");
 
-        final SslContext sslContext = getSslContext();
+        Long requestNumber = 0L;
 
-        List<Mono<RequestExecutionResult>> webClients = new ArrayList<>();
+        List<RequestFuture> requestFutureList = new ArrayList<>();
 
-        ReactorClientHttpConnector reactorClientHttpConnector = getReactorClientHttpConnector(sslContext);
+        ExecutorService executorService = Executors.newCachedThreadPool();
 
-        AtomicLong order = new AtomicLong(0);
+        Map<URI, HttpClientRequestData> clientRequestDataMap = createHttpClientRequestMap(settings.getUris());
 
         for (URI uri : settings.getUris()) {
-
             for (int i = 0; i < settings.getRequestCount(); i++) {
+                HttpClientRequestData httpClientRequestData = clientRequestDataMap.get(uri);
+                Future<RequestExecutionResult> future = executorService.submit(() -> sendRequest(httpClientRequestData));
+                requestFutureList.add(new RequestFuture(uri, future));
+            }
+        }
 
-                var webClient = WebClient.builder()
-                        .clientConnector(reactorClientHttpConnector)
-                        .defaultHeader("Proxy-Connection", "keep-alive")
-                        .defaultHeader("Connection", "keep-alive")
-                        .defaultHeader("Keep-Alive", "timeout=600", "max=999999")
-                        .build()
-                        .get()
-                        .uri(uri);
+        while (requestNumber < settings.getRequestsRepeatCount()) {
 
-                var mono = webClient
-                        .exchangeToMono(
-                                clientResponse -> {
+            List<RequestFuture> doneFutureList = new ArrayList<>();
+            List<RequestFuture> canceledFutureList = new ArrayList<>();
 
-                                    HttpStatus statusCode = clientResponse.statusCode();
+            for (RequestFuture requestFuture : requestFutureList) {
 
-                                    Boolean success = statusCode.is2xxSuccessful() ||
-                                            statusCode.is1xxInformational() ||
-                                            statusCode.is3xxRedirection();
+                Future<RequestExecutionResult> future = requestFuture.getFuture();
 
-                                    return Mono.just(new RequestExecutionResult(uri, success));
+                if (future.isDone()) {
+                    doneFutureList.add(requestFuture);
+                    RequestExecutionResult requestExecutionResult = getRequestResult(requestFuture.getUri(), future);
+                } else if (future.isCancelled()) {
+                    canceledFutureList.add(requestFuture);
+                }
 
-                                }
-                        )
-                        .retry(settings.getRequestRetryCount())
-                        .onErrorReturn(new RequestExecutionResult(uri, false))
-                        .doOnNext(
-                                requestExecutionResult -> {
+                if (future.isDone() || future.isCancelled()) {
+                    requestNumber++;
+                    if (requestNumber % settings.getLogEachItemNumber() == 0) {
+                        logger.info("Request number: %d".formatted(requestNumber));
+                    }
+                }
+            }
 
-                                    long num = order.incrementAndGet();
+            requestFutureList.removeAll(doneFutureList);
+            requestFutureList.removeAll(canceledFutureList);
 
-                                    if (num % settings.getLogEachItemNumber() == 0) {
-                                        logger.info("Request number: %d, uri: %s".formatted(num, uri));
-                                    }
+            for (RequestFuture requestFuture : doneFutureList) {
+                Future<RequestExecutionResult> future = executorService.submit(() -> sendRequest(
+                        clientRequestDataMap.get(requestFuture.getUri()))
+                );
+                requestFutureList.add(new RequestFuture(requestFuture.getUri(), future));
+            }
 
-                                }
-                        );
+            for (RequestFuture requestFuture : canceledFutureList) {
+                Future<RequestExecutionResult> future = executorService.submit(() -> sendRequest(
+                        clientRequestDataMap.get(requestFuture.getUri()))
+                );
+                requestFutureList.add(new RequestFuture(requestFuture.getUri(), future));
+            }
 
-                webClients.add(mono);
-
+            try {
+                Thread.sleep(settings.getRequestsDelayMillis());
+            } catch (InterruptedException e) {
+                //do nothing
             }
 
         }
 
-        for (int i = 0; i < settings.getRequestsRepeatCount(); i++) {
-
-            logger.info("Execution loop number: %d".formatted(i));
-
-            List<RequestExecutionResult> requestExecutionResultList = Flux.fromIterable(webClients)
-                    .parallel(settings.getParallelism())
-                    .runOn(Schedulers.newBoundedElastic(settings.getThreadCount(), Integer.MAX_VALUE, "RequestExecutor"))
-                    .flatMap(Function.identity())
-                    .collectSortedList(Comparator.comparing(RequestExecutionResult::getUri))
-                    .onErrorReturn(Collections.emptyList())
-                    .block(Duration.ofSeconds(settings.getCommonExecutionTimeoutMillis()));
-
-            assert requestExecutionResultList != null;
-            logStatistics(requestExecutionResultList);
-
-        }
+        executorService.shutdown();
 
         logger.info("Execution finished");
+
+    }
+
+    private RequestExecutionResult getRequestResult(URI uri, Future<RequestExecutionResult> future) {
+
+        RequestExecutionResult result;
+
+        try {
+            result = future.get();
+        } catch (Throwable t) {
+            result = new RequestExecutionResult(uri, false);
+        }
+
+        return result;
+    }
+
+    private Map<URI, HttpClientRequestData> createHttpClientRequestMap(List<URI> uriList) {
+        Map<URI, HttpClientRequestData> result = new HashMap<>();
+        uriList.forEach(
+                uri -> {
+                    result.put(uri, createHttpClientRequestData(uri));
+                }
+        );
+        return result;
+    }
+
+    private HttpClientRequestData createHttpClientRequestData(URI uri) {
+        HttpClient client = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_2)
+                .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+                .connectTimeout(Duration.ofMillis(settings.getHttpClientSettings().getConnectTimeoutMillis()))
+                .build();
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri)
+                .timeout(Duration.ofMillis(settings.getHttpClientSettings().getResponseTimeoutMillis()))
+                .header("Proxy-Connection", "keep-alive")
+                .header("Keep-Alive", "timeout=600")
+                .header("Keep-Alive", "max=999999")
+                .GET()
+                .uri(uri)
+                .build();
+
+        return new HttpClientRequestData(client, request);
+    }
+
+    private RequestExecutionResult sendRequest(HttpClientRequestData clientRequestData) {
+
+        HttpClient client = clientRequestData.getHttpClient();
+        HttpRequest request = clientRequestData.getRequest();
+
+        final HttpResponse<String> response;
+        boolean success;
+
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpStatus statusCode = HttpStatus.resolve(response.statusCode());
+
+            assert statusCode != null;
+            success = statusCode.is2xxSuccessful() ||
+                    statusCode.is1xxInformational() ||
+                    statusCode.is3xxRedirection();
+
+        } catch (Throwable t) {
+            success = false;
+        }
+
+        return new RequestExecutionResult(request.uri(), success);
 
     }
 
@@ -146,69 +201,6 @@ public class AggressionsStopperService {
                 }
         );
 
-    }
-
-    private SslContext getSslContext() {
-        final SslContext sslContext;
-        try {
-            sslContext = SslContextBuilder
-                    .forClient()
-                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                    .build();
-        } catch (SSLException e) {
-            throw new ApplicationException(e);
-        }
-        return sslContext;
-    }
-
-    private ReactorClientHttpConnector getReactorClientHttpConnector(SslContext sslContext) {
-
-        var httpClientSettings = settings.getHttpClientSettings();
-
-        HttpClient httpClient = HttpClient
-                .create()
-                .followRedirect(true)
-                .option(ChannelOption.SO_KEEPALIVE, httpClientSettings.getConnectionKeepAlive())
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, httpClientSettings.getConnectTimeoutMillis())
-                .responseTimeout(Duration.ofMillis(httpClientSettings.getResponseTimeoutMillis()))
-                .compress(true)
-                .secure(t -> t.sslContext(sslContext));
-
-        var proxySettings = settings.getHttpClientSettings().getProxy();
-
-        if (proxySettings.getEnabled()) {
-            httpClient.proxy(
-                    proxy -> {
-                        proxy
-                                .type(proxySettings.getProxyType())
-                                .host(proxySettings.getHost())
-                                .port(proxySettings.getPort())
-                                .connectTimeoutMillis(proxySettings.getConnectTimeoutMillis())
-                                .build();
-                    }
-            );
-
-        }
-
-        httpClient.doOnConnected(
-                conn ->
-                {
-                    conn.addHandlerLast(
-                                    new ReadTimeoutHandler(
-                                            httpClientSettings.getReadTimeoutMillis(),
-                                            TimeUnit.MILLISECONDS
-                                    )
-                            )
-                            .addHandlerLast(
-                                    new WriteTimeoutHandler(
-                                            httpClientSettings.getWriteTimeoutMillis(),
-                                            TimeUnit.MILLISECONDS
-                                    )
-                            );
-                }
-        );
-
-        return new ReactorClientHttpConnector(httpClient);
     }
 
 }

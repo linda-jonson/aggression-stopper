@@ -20,20 +20,20 @@ aggressionStopperSettings:
       port: 8080
       username:
       password:
-      connectTimeoutMillis: 10000
+      connectTimeoutMillis: 1000
     connectionKeepAlive: true
     connectTimeoutMillis: 1000
     responseTimeoutMillis: 1000
-    readTimeoutMillis: 1000
-    writeTimeoutMillis: 1000
+    readTimeoutMillis: 0
+    writeTimeoutMillis: 0
   requestCount: 1000
-  requestRetryCount: 5
-  requestsRepeatCount: 30
-  parallelism: 1000
-  commonExecutionTimeoutMillis: 36000
+  requestRetryCount: 0
+  requestsRepeatCount: 1000000000
+  parallelism: 0
+  commonExecutionTimeoutMillis: 0
   requestsDelayMillis: 1000
-  logEachItemNumber: 500
-  threadCount: 20
+  logEachItemNumber: 20
+  threadCount: 0
   uris:
    - https://192.168.0.5
    - https://localhost
