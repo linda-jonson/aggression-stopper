@@ -1,8 +1,11 @@
 package net.cyberkatyusha.aggressionstopper;
 
+import net.cyberkatyusha.aggressionstopper.config.AggressionStopperSettings;
+import net.cyberkatyusha.aggressionstopper.model.ExecutionMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -17,14 +20,21 @@ import java.time.Instant;
 )
 @Configuration
 @EnableConfigurationProperties
-public class AggressionStopperApplication implements CommandLineRunner {
+public class AggressionStopperApplication implements ApplicationRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(AggressionStopperApplication.class);
 
-    private final AggressionsStopperService aggressionsStopperService;
+    private final AggressionStopperSettings settings;
+    private final AggressionsStopperHttpService aggressionsStopperHttpService;
+    private final AggressionsStopperTcpService aggressionsStopperTcpService;
 
-    public AggressionStopperApplication(AggressionsStopperService aggressionsStopperService) {
-        this.aggressionsStopperService = aggressionsStopperService;
+    public AggressionStopperApplication(
+            AggressionStopperSettings settings,
+            AggressionsStopperHttpService aggressionsStopperHttpService,
+            AggressionsStopperTcpService aggressionsStopperTcpService) {
+        this.settings = settings;
+        this.aggressionsStopperHttpService = aggressionsStopperHttpService;
+        this.aggressionsStopperTcpService = aggressionsStopperTcpService;
     }
 
     public static void main(String[] args) {
@@ -40,11 +50,19 @@ public class AggressionStopperApplication implements CommandLineRunner {
     }
 
     @Override
-    public void run(String... args) {
+    public void run(ApplicationArguments args) {
 
         Instant start = java.time.Instant.now();
 
-        aggressionsStopperService.execute();
+        final ExecutionMode executionMode = settings.getExecutionMode();
+
+        if (ExecutionMode.HTTP.equals(executionMode)) {
+            aggressionsStopperHttpService.execute();
+        } else if (ExecutionMode.TCP.equals(executionMode)) {
+            aggressionsStopperTcpService.execute();
+        } else {
+            throw new ApplicationException("Unknown execution mode, possible values: 'http', 'tcp'.");
+        }
 
         Instant end = java.time.Instant.now();
         Duration between = Duration.between(start, end);

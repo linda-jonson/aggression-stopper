@@ -1,7 +1,10 @@
 package net.cyberkatyusha.aggressionstopper.config;
 
 
+import net.cyberkatyusha.aggressionstopper.model.ExecutionMode;
 import net.cyberkatyusha.aggressionstopper.model.HttpClientSettings;
+import net.cyberkatyusha.aggressionstopper.model.SocketClientSettings;
+import net.cyberkatyusha.aggressionstopper.model.TcpAddress;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +15,9 @@ import java.util.List;
 @ConfigurationProperties(prefix = "aggression-stopper-settings")
 public class AggressionStopperSettings {
 
+    private ExecutionMode executionMode;
     private HttpClientSettings httpClientSettings;
+    private SocketClientSettings socketClientSettings;
     private Integer requestCount;
     private Integer requestRetryCount;
     private Integer requestsRepeatCount;
@@ -21,7 +26,16 @@ public class AggressionStopperSettings {
     private Integer requestsDelayMillis;
     private Integer threadCount;
     private List<URI> uris;
+    private List<TcpAddress> tcpAddresses;
     private Long logEachItemNumber;
+
+    public ExecutionMode getExecutionMode() {
+        return executionMode;
+    }
+
+    public void setExecutionMode(ExecutionMode executionMode) {
+        this.executionMode = executionMode;
+    }
 
     public HttpClientSettings getHttpClientSettings() {
         return httpClientSettings;
@@ -29,6 +43,14 @@ public class AggressionStopperSettings {
 
     public void setHttpClientSettings(HttpClientSettings httpClientSettings) {
         this.httpClientSettings = httpClientSettings;
+    }
+
+    public SocketClientSettings getSocketClientSettings() {
+        return socketClientSettings;
+    }
+
+    public void setSocketClientSettings(SocketClientSettings socketClientSettings) {
+        this.socketClientSettings = socketClientSettings;
     }
 
     public Integer getRequestCount() {
@@ -93,6 +115,14 @@ public class AggressionStopperSettings {
 
     public void setUris(List<URI> uris) {
         this.uris = uris;
+    }
+
+    public List<TcpAddress> getTcpAddresses() {
+        return tcpAddresses;
+    }
+
+    public void setTcpAddresses(List<TcpAddress> tcpAddresses) {
+        this.tcpAddresses = tcpAddresses;
     }
 
     public Long getLogEachItemNumber() {

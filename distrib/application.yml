@@ -11,6 +11,8 @@ logging:
           client: error
 
 aggressionStopperSettings:
+  #HTTP, TCP
+  executionMode: TCP
   httpClientSettings:
     proxy:
       enabled: false
@@ -26,15 +28,20 @@ aggressionStopperSettings:
     responseTimeoutMillis: 1000
     readTimeoutMillis: 0
     writeTimeoutMillis: 0
-  requestCount: 1000
+  socketClientSettings:
+    connectTimeoutMillis: 1000
+  requestCount: 1
   requestRetryCount: 0
-  requestsRepeatCount: 1000000000
+  requestsRepeatCount: 1
   parallelism: 0
   commonExecutionTimeoutMillis: 0
-  requestsDelayMillis: 1000
+  requestsDelayMillis: 700
   logEachItemNumber: 20
   threadCount: 0
   uris:
    - https://192.168.0.5
    - https://localhost
    - https://localhost10
+  tcpAddresses:
+    - host: 192.168.15.7
+      port: 8500
