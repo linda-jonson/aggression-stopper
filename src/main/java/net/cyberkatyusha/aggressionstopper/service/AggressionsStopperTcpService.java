@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
@@ -130,9 +131,14 @@ public class AggressionsStopperTcpService {
     private TcpRequestExecutionResult sendRequest(TcpAddress address, byte[] bytes) {
         boolean success;
 
-        try (Socket socket = new Socket(address.getHost(), address.getPort())) {
+        try (Socket socket = new Socket()) {
 
-            socket.setSoTimeout(settings.getSocketClientSettings().getConnectTimeoutMillis());
+            socket.setSoTimeout(settings.getSocketClientSettings().getSoTimeoutMillis());
+
+            socket.connect(
+                    new InetSocketAddress(address.getHost(), address.getPort()),
+                    settings.getSocketClientSettings().getConnectTimeoutMillis()
+            );
 
             try (OutputStream outputStream = socket.getOutputStream()) {
                 outputStream.write(bytes);

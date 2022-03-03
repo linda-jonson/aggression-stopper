@@ -30,6 +30,7 @@ aggressionStopperSettings:
     writeTimeoutMillis: 0
   socketClientSettings:
     connectTimeoutMillis: 1000
+    soTimeoutMillis: 1000
   requestCount: 1
   requestRetryCount: 0
   requestsRepeatCount: 1
