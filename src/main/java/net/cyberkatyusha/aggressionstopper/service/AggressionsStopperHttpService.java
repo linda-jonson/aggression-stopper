@@ -1,4 +1,4 @@
-package net.cyberkatyusha.aggressionstopper;
+package net.cyberkatyusha.aggressionstopper.service;
 
 import net.cyberkatyusha.aggressionstopper.config.AggressionStopperSettings;
 import net.cyberkatyusha.aggressionstopper.model.HttpClientRequestData;

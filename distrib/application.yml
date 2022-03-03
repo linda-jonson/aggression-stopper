@@ -12,7 +12,7 @@ logging:
 
 aggressionStopperSettings:
   #HTTP, TCP
-  executionMode: TCP
+  executionMode: HTTP
   httpClientSettings:
     proxy:
       enabled: false
