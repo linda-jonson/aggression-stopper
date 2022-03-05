@@ -31,7 +31,7 @@ aggressionStopperSettings:
   socketClientSettings:
     connectTimeoutMillis: 2000
     soTimeoutMillis: 2000
-    useLocalAddress: true
+    useLocalAddress: false
     localAddress: 10.211.1.149
   requestCount: 150
   requestRetryCount: 0
@@ -42,9 +42,9 @@ aggressionStopperSettings:
   logEachItemNumber: 50
   threadCount: 0
   uris:
-   - https://192.168.0.5
-   - https://localhost
-   - https://localhost10
+    - https://192.168.0.5
+    - https://localhost
+    - https://localhost10
   tcpAddresses:
     - host: localhost
       port: 80
