@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -135,10 +136,19 @@ public class AggressionsStopperTcpService {
 
             socket.setSoTimeout(settings.getSocketClientSettings().getSoTimeoutMillis());
 
-            socket.connect(
-                    new InetSocketAddress(address.getHost(), address.getPort()),
-                    settings.getSocketClientSettings().getConnectTimeoutMillis()
-            );
+            if (settings.getSocketClientSettings().getUseLocalAddress()) {
+                String localHostAsString = settings.getSocketClientSettings().getLocalAddress();
+                String localHostAddressAsString = InetAddress.getByName(localHostAsString).getHostAddress();
+                InetSocketAddress localAddress = new InetSocketAddress(localHostAddressAsString, 0);
+                socket.bind(localAddress);
+            }
+
+            String remoteHostAddressAsString = InetAddress.getByName(address.getHost()).getHostAddress();
+            InetSocketAddress remoteAddress = new InetSocketAddress(remoteHostAddressAsString, address.getPort());
+
+            Integer connectTimeoutMillis = settings.getSocketClientSettings().getConnectTimeoutMillis();
+
+            socket.connect(remoteAddress, connectTimeoutMillis);
 
             try (OutputStream outputStream = socket.getOutputStream()) {
                 outputStream.write(bytes);
