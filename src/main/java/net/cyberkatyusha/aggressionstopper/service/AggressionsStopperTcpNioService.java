@@ -458,6 +458,7 @@ public class AggressionsStopperTcpNioService {
                                                 channelData.getSocketChannel().write(channelData.getByteBuffer())
                                         );
                                         channelData.setStatus(SocketChannelStatus.DATA_SENDING);
+                                        channelData.setDataWriteStart(java.time.Instant.now());
 
                                     } catch (Throwable t) {
 
