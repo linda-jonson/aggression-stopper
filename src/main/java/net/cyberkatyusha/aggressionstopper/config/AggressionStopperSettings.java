@@ -1,10 +1,7 @@
 package net.cyberkatyusha.aggressionstopper.config;
 
 
-import net.cyberkatyusha.aggressionstopper.model.ExecutionMode;
-import net.cyberkatyusha.aggressionstopper.model.HttpClientSettings;
-import net.cyberkatyusha.aggressionstopper.model.SocketClientSettings;
-import net.cyberkatyusha.aggressionstopper.model.TcpAddress;
+import net.cyberkatyusha.aggressionstopper.model.*;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +15,8 @@ public class AggressionStopperSettings {
     private ExecutionMode executionMode;
     private HttpClientSettings httpClientSettings;
     private SocketClientSettings socketClientSettings;
+    private SocketChannelSettings socketChannelSettings;
+    private RandomBytesArraySettings randomBytesArraySettings;
     private Integer requestCount;
     private Integer requestRetryCount;
     private Integer requestsRepeatCount;
@@ -51,6 +50,22 @@ public class AggressionStopperSettings {
 
     public void setSocketClientSettings(SocketClientSettings socketClientSettings) {
         this.socketClientSettings = socketClientSettings;
+    }
+
+    public SocketChannelSettings getSocketChannelSettings() {
+        return socketChannelSettings;
+    }
+
+    public void setSocketChannelSettings(SocketChannelSettings socketChannelSettings) {
+        this.socketChannelSettings = socketChannelSettings;
+    }
+
+    public RandomBytesArraySettings getRandomBytesArraySettings() {
+        return randomBytesArraySettings;
+    }
+
+    public void setRandomBytesArraySettings(RandomBytesArraySettings randomBytesArraySettings) {
+        this.randomBytesArraySettings = randomBytesArraySettings;
     }
 
     public Integer getRequestCount() {

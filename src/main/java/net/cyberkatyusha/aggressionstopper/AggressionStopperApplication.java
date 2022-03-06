@@ -4,6 +4,7 @@ import net.cyberkatyusha.aggressionstopper.config.AggressionStopperSettings;
 import net.cyberkatyusha.aggressionstopper.exception.ApplicationException;
 import net.cyberkatyusha.aggressionstopper.model.ExecutionMode;
 import net.cyberkatyusha.aggressionstopper.service.AggressionsStopperHttpService;
+import net.cyberkatyusha.aggressionstopper.service.AggressionsStopperTcpNioService;
 import net.cyberkatyusha.aggressionstopper.service.AggressionsStopperTcpService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,14 +31,17 @@ public class AggressionStopperApplication implements ApplicationRunner {
     private final AggressionStopperSettings settings;
     private final AggressionsStopperHttpService aggressionsStopperHttpService;
     private final AggressionsStopperTcpService aggressionsStopperTcpService;
+    private final AggressionsStopperTcpNioService aggressionsStopperTcpNioService;
 
     public AggressionStopperApplication(
             AggressionStopperSettings settings,
             AggressionsStopperHttpService aggressionsStopperHttpService,
-            AggressionsStopperTcpService aggressionsStopperTcpService) {
+            AggressionsStopperTcpService aggressionsStopperTcpService,
+            AggressionsStopperTcpNioService aggressionsStopperTcpNioService) {
         this.settings = settings;
         this.aggressionsStopperHttpService = aggressionsStopperHttpService;
         this.aggressionsStopperTcpService = aggressionsStopperTcpService;
+        this.aggressionsStopperTcpNioService = aggressionsStopperTcpNioService;
     }
 
     public static void main(String[] args) {
@@ -63,6 +67,8 @@ public class AggressionStopperApplication implements ApplicationRunner {
             aggressionsStopperHttpService.execute();
         } else if (ExecutionMode.TCP.equals(executionMode)) {
             aggressionsStopperTcpService.execute();
+        } else if (ExecutionMode.TCP_NIO.equals(executionMode)) {
+            aggressionsStopperTcpNioService.execute();
         } else {
             throw new ApplicationException("Unknown execution mode, possible values: 'http', 'tcp'.");
         }

@@ -121,11 +121,7 @@ public class AggressionsStopperHttpService {
 
     private Map<URI, HttpClientRequestData> createHttpClientRequestMap(List<URI> uriList) {
         Map<URI, HttpClientRequestData> result = new HashMap<>();
-        uriList.forEach(
-                uri -> {
-                    result.put(uri, createHttpClientRequestData(uri));
-                }
-        );
+        uriList.forEach(uri -> result.put(uri, createHttpClientRequestData(uri)));
         return result;
     }
 
