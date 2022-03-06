@@ -40,7 +40,7 @@ aggressionStopperSettings:
   socketChannelSettings:
     connectTimeoutMillis: 2000
     writeTimeoutMillis: 2000
-    useLocalAddress: true
+    useLocalAddress: false
     localAddress: 10.12.100.150
     channelCount: 500
     finalStateMachineDelayMillis: 50
