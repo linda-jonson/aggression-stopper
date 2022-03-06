@@ -12,7 +12,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -63,6 +63,8 @@ public class AggressionsStopperTcpNioService {
                 requestFutureList.add(new SocketChannelRequestFuture(futureId, address, future));
             }
         }
+
+        logger.info("Socket Channel Futures created");
 
         while (requestNumber < settings.getRequestsRepeatCount()) {
 
@@ -169,6 +171,9 @@ public class AggressionsStopperTcpNioService {
 
         try {
             remoteHostAddressAsString = InetAddress.getByName(address.getHost()).getHostAddress();
+
+            logger.info("Calculated remote host address: '%s'".formatted(remoteHostAddressAsString));
+
         } catch (UnknownHostException e) {
             logger.error("Can not resolve remote host: '%s'".formatted(address.getHost()), e);
             return new SocketChannelRequestExecutionResult(
@@ -225,10 +230,19 @@ public class AggressionsStopperTcpNioService {
 
                 try {
                     localHostAddressAsString = InetAddress.getByName(localHostAsString).getHostAddress();
+
+                    logger.info("Calculated local host address: '%s'".formatted(localHostAddressAsString));
+
                 } catch (Throwable t) {
                     throw new ApplicationException(
                             "Can not resolve local host: id: %d, remote address: '%s:%d', local address: '%s' '%s'"
-                                    .formatted(id, address.getHost(), address.getPort(), localHostAsString, t.getMessage()),
+                                    .formatted(
+                                            id,
+                                            address.getHost(),
+                                            address.getPort(),
+                                            localHostAsString,
+                                            t.getMessage()
+                                    ),
                             t
                     );
                 }
@@ -269,6 +283,11 @@ public class AggressionsStopperTcpNioService {
                         );
                     }
                 }
+
+                logger.info("Set local host address '%s' to socket Channels."
+                        .formatted(settings.getSocketChannelSettings().getLocalAddress())
+                );
+
             }
 
             long connectCount;
@@ -281,6 +300,13 @@ public class AggressionsStopperTcpNioService {
             long sendDataErrorCount;
 
             final long connectionSequenceMax = settings.getSocketChannelSettings().getConnectionSequenceMax();
+
+            logger.info(
+                    "Read connection sequence max: %d, socket channel data list size: %d"
+                            .formatted(connectionSequenceMax, socketChannelDataList.size())
+            );
+
+            Instant loopStartTime = java.time.Instant.now();
 
             while (socketChannelDataList.size() > 0 && totalConnectCount < connectionSequenceMax) {
 
@@ -296,7 +322,6 @@ public class AggressionsStopperTcpNioService {
                 List<SocketChannelData> socketChannelDataToAddList = new ArrayList<>();
                 List<SocketChannelData> socketChannelDataToRemoveList = new ArrayList<>();
 
-                //Connect
                 for (SocketChannelData channelData : socketChannelDataList) {
                     try {
 
@@ -307,10 +332,24 @@ public class AggressionsStopperTcpNioService {
                             try {
 
                                 connectCount++;
-                                channelData.getSocketChannel().connect(remoteAddress);
                                 channelData.setStatus(SocketChannelStatus.CONNECTING);
+                                channelData.setConnectionStatus(channelData.getSocketChannel().connect(remoteAddress));
 
                             } catch (Throwable t) {
+
+                                logger.debug(
+                                        (
+                                                "Can not establish connection: id: %d, address: " +
+                                                        "'%s:%d', status: '%s', error: '%s'"
+                                        )
+                                                .formatted(
+                                                        id,
+                                                        address.getHost(),
+                                                        address.getPort(),
+                                                        channelData.getStatus(),
+                                                        t.getMessage()
+                                                )
+                                );
 
                                 try {
                                     channelData.getSocketChannel().close();
@@ -325,7 +364,7 @@ public class AggressionsStopperTcpNioService {
 
                         } else if (SocketChannelStatus.CONNECTING.equals(channelData.getStatus())) {
 
-                            if (channelData.getSocketChannel().isConnectionPending()) {
+                            if (!channelData.getConnectionStatus().isDone()) {
 
                                 Instant end = java.time.Instant.now();
                                 Duration between = Duration.between(channelData.getConnectionStart(), end);
@@ -333,6 +372,8 @@ public class AggressionsStopperTcpNioService {
                                 Integer connectTimeoutMillis = settings.getSocketChannelSettings().getConnectTimeoutMillis();
 
                                 if (between.toMillis() > connectTimeoutMillis) {
+
+                                    channelData.getConnectionStatus().cancel(true);
 
                                     try {
                                         channelData.getSocketChannel().close();
@@ -344,23 +385,124 @@ public class AggressionsStopperTcpNioService {
 
                                     connectTimeoutCount++;
 
+                                    logger.debug(
+                                            (
+                                                    "Connect timeout: id: %d, address: " +
+                                                            "'%s:%d', status: '%s', timeout mills: %d"
+                                            )
+                                                    .formatted(
+                                                            id,
+                                                            address.getHost(),
+                                                            address.getPort(),
+                                                            channelData.getStatus(),
+                                                            connectTimeoutMillis
+                                                    )
+                                    );
+
                                 }
 
-                            } else if (channelData.getSocketChannel().isConnected()) {
+                            } else if (channelData.getConnectionStatus().isDone()) {
 
-                                connectSuccessCount++;
+                                boolean connectedSuccessfully;
 
                                 try {
 
-                                    sendDataCount++;
-                                    channelData.getSocketChannel().write(channelData.getByteBuffer());
-                                    channelData.setStatus(SocketChannelStatus.DATA_SENDING);
+                                    if (Objects.isNull(channelData.getConnectionStatus().get())) {
+                                        connectedSuccessfully = true;
+                                    } else {
+
+                                        logger.debug(
+                                                (
+                                                        "Can not connect to remote resource: " +
+                                                                "id: %d, address: '%s:%d', status: '%s'"
+                                                )
+                                                        .formatted(
+                                                                id,
+                                                                address.getHost(),
+                                                                address.getPort(),
+                                                                channelData.getStatus()
+                                                        )
+                                        );
+
+                                        connectedSuccessfully = false;
+                                    }
 
                                 } catch (Throwable t) {
 
+                                    logger.debug(
+                                            (
+                                                    "Can not connect to remote resource: " +
+                                                            "id: %d, address: '%s:%d', status: '%s', error: '%s'"
+                                            )
+                                                    .formatted(
+                                                            id,
+                                                            address.getHost(),
+                                                            address.getPort(),
+                                                            channelData.getStatus(),
+                                                            t.getMessage()
+                                                    ),
+                                            t
+                                    );
+
+                                    connectedSuccessfully = false;
+                                }
+
+                                if (connectedSuccessfully) {
+
+                                    connectSuccessCount++;
+
+                                    try {
+
+                                        sendDataCount++;
+                                        channelData.setWriteStatus(
+                                                channelData.getSocketChannel().write(channelData.getByteBuffer())
+                                        );
+                                        channelData.setStatus(SocketChannelStatus.DATA_SENDING);
+
+                                    } catch (Throwable t) {
+
+                                        sendDataErrorCount++;
+                                        channelData.setStatus(SocketChannelStatus.ERROR);
+                                        socketChannelDataToRemoveList.add(channelData);
+
+                                        logger.debug(
+                                                (
+                                                        "Can not write date to socket channel: " +
+                                                                "id: %d, address: '%s:%d', status: '%s', error: '%s'"
+                                                )
+                                                        .formatted(
+                                                                id,
+                                                                address.getHost(),
+                                                                address.getPort(),
+                                                                channelData.getStatus(),
+                                                                t.getMessage()
+                                                        )
+                                        );
+
+                                    }
+
+                                } else {
+
+                                    try {
+                                        channelData.getSocketChannel().close();
+                                    } catch (Throwable ignored) {
+                                    }
+
                                     channelData.setStatus(SocketChannelStatus.ERROR);
                                     socketChannelDataToRemoveList.add(channelData);
-                                    sendDataErrorCount++;
+                                    sendDataTimeoutCount++;
+
+                                    logger.debug(
+                                            (
+                                                    "Connection error: id: %d, address: '%s:%d', status: '%s'"
+                                            )
+                                                    .formatted(
+                                                            id,
+                                                            address.getHost(),
+                                                            address.getPort(),
+                                                            channelData.getStatus()
+                                                    )
+                                    );
 
                                 }
 
@@ -370,9 +512,15 @@ public class AggressionsStopperTcpNioService {
 
                         } else if (SocketChannelStatus.DATA_SENDING.equals(channelData.getStatus())) {
 
-                            if (!channelData.getByteBuffer().hasRemaining()) {
+                            Future<Integer> writeFuture = channelData.getWriteStatus();
 
-                                sendDataSuccessCount++;
+                            if (writeFuture.isDone()) {
+
+                                if (bytes.length == writeFuture.get()) {
+                                    sendDataSuccessCount++;
+                                } else {
+                                    sendDataErrorCount++;
+                                }
 
                                 try {
                                     channelData.getSocketChannel().close();
@@ -391,6 +539,8 @@ public class AggressionsStopperTcpNioService {
 
                                 if (between.toMillis() > writeTimeoutMillis) {
 
+                                    channelData.getWriteStatus().cancel(true);
+
                                     try {
                                         channelData.getSocketChannel().close();
                                     } catch (Throwable ignored) {
@@ -399,6 +549,20 @@ public class AggressionsStopperTcpNioService {
                                     channelData.setStatus(SocketChannelStatus.TIMEOUT);
                                     socketChannelDataToRemoveList.add(channelData);
                                     sendDataTimeoutCount++;
+
+                                    logger.debug(
+                                            (
+                                                    "Write timeout: id: %d, address: " +
+                                                            "'%s:%d', status: '%s', timeout mills: %d"
+                                            )
+                                                    .formatted(
+                                                            id,
+                                                            address.getHost(),
+                                                            address.getPort(),
+                                                            channelData.getStatus(),
+                                                            writeTimeoutMillis
+                                                    )
+                                    );
 
                                 }
 
@@ -449,7 +613,7 @@ public class AggressionsStopperTcpNioService {
                 }
 
                 for (int i = 0; i < socketChannelDataToRemoveList.size(); i++) {
-                    recreateSocketChannel(bytes, localAddress, socketChannelDataToAddList);
+                    recreateSocketChannel(id, address, bytes, localAddress, socketChannelDataToAddList);
                 }
 
                 socketChannelDataList.removeAll(socketChannelDataToRemoveList);
@@ -464,7 +628,9 @@ public class AggressionsStopperTcpNioService {
                 totalSendDataTimeoutCount += sendDataTimeoutCount;
                 totalSendDataErrorCount += sendDataErrorCount;
 
-                if (totalSendDataCount % settings.getLogEachItemNumber() == 0) {
+                Duration between = Duration.between(loopStartTime, java.time.Instant.now());
+
+                if (between.toMillis() > settings.getLogEachMills()) {
 
                     logger.info(
                             (
@@ -478,7 +644,7 @@ public class AggressionsStopperTcpNioService {
                                             "sendDataCount: %d, " +
                                             "sendDataSuccessCount: %d, " +
                                             "sendDataTimeoutCount: %d, " +
-                                            "sendDataErrorCount: %d" +
+                                            "sendDataErrorCount: %d, " +
 
                                             "totalConnectCount: %d, " +
                                             "totalConnectSuccessCount: %d, " +
@@ -519,19 +685,30 @@ public class AggressionsStopperTcpNioService {
                     } catch (InterruptedException ignored) {
                     }
 
+                    loopStartTime = java.time.Instant.now();
+
                 }
 
             }
 
         } finally {
 
-            //Close
             for (SocketChannelData socketChannelData : socketChannelDataList) {
                 try {
                     socketChannelData.getSocketChannel().close();
                 } catch (Throwable ignored) {
                 }
             }
+
+            logger.info(
+                    "Socket channels closed: id: %d, address: '%s:%d', socket channels count: '%d'"
+                            .formatted(
+                                    id,
+                                    address.getHost(),
+                                    address.getPort(),
+                                    socketChannelDataList.size()
+                            )
+            );
 
         }
 
@@ -551,7 +728,7 @@ public class AggressionsStopperTcpNioService {
         );
     }
 
-    private void recreateSocketChannel(byte[] bytes, InetSocketAddress localAddress, List<SocketChannelData> socketChannelDataToAddList) {
+    private void recreateSocketChannel(long id, TcpAddress address, byte[] bytes, InetSocketAddress localAddress, List<SocketChannelData> socketChannelDataToAddList) {
         SocketChannelData newSocketChannelData = null;
         try {
             newSocketChannelData = createSocketChannelData(bytes);
@@ -561,7 +738,19 @@ public class AggressionsStopperTcpNioService {
             }
 
             socketChannelDataToAddList.add(newSocketChannelData);
-        } catch (Throwable tInner) {
+
+        } catch (Throwable t) {
+
+            logger.error("Can not recreate socket channel: id: %d, address: '%s:%d', error: '%s'"
+                            .formatted(
+                                    id,
+                                    address.getHost(),
+                                    address.getPort(),
+                                    t.getMessage()
+                            ),
+                    t
+            );
+
             try {
                 if (Objects.nonNull(newSocketChannelData)) {
                     newSocketChannelData.getSocketChannel().close();
@@ -572,7 +761,7 @@ public class AggressionsStopperTcpNioService {
     }
 
     private SocketChannelData createSocketChannelData(byte[] bytes) throws IOException {
-        SocketChannel channel = SocketChannel.open();
+        AsynchronousSocketChannel channel = AsynchronousSocketChannel.open();
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
 
         return new SocketChannelData(channel, byteBuffer, SocketChannelStatus.OPENED);

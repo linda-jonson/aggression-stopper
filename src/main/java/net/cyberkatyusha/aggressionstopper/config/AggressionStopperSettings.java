@@ -27,6 +27,7 @@ public class AggressionStopperSettings {
     private List<URI> uris;
     private List<TcpAddress> tcpAddresses;
     private Long logEachItemNumber;
+    private Long logEachMills;
 
     public ExecutionMode getExecutionMode() {
         return executionMode;
@@ -146,5 +147,13 @@ public class AggressionStopperSettings {
 
     public void setLogEachItemNumber(Long logEachItemNumber) {
         this.logEachItemNumber = logEachItemNumber;
+    }
+
+    public Long getLogEachMills() {
+        return logEachMills;
+    }
+
+    public void setLogEachMills(Long logEachMills) {
+        this.logEachMills = logEachMills;
     }
 }

@@ -9,6 +9,10 @@ logging:
       netty:
         http:
           client: error
+    net:
+      cyberkatyusha:
+        aggressionstopper:
+          service: info
 
 aggressionStopperSettings:
   #HTTP, TCP, TCP_NIO
@@ -34,20 +38,21 @@ aggressionStopperSettings:
     useLocalAddress: false
     localAddress: 10.20.1.12
   socketChannelSettings:
-    connectTimeoutMillis: 20000
-    writeTimeoutMillis: 20000
-    useLocalAddress: false
-    localAddress: 10.20.30.1
+    connectTimeoutMillis: 2000
+    writeTimeoutMillis: 2000
+    useLocalAddress: true
+    localAddress: 10.12.100.150
     channelCount: 500
     finalStateMachineDelayMillis: 50
-    connectionSequenceMax: 1000000
+    connectionSequenceMax: 1000000000
   requestCount: 1
   requestRetryCount: 0
   requestsRepeatCount: 1
   parallelism: 0
   commonExecutionTimeoutMillis: 0
   requestsDelayMillis: 10000
-  logEachItemNumber: 50
+  logEachItemNumber: 500
+  logEachMills: 2000
   threadCount: 0
   randomBytesArraySettings:
     defaultSize: 128

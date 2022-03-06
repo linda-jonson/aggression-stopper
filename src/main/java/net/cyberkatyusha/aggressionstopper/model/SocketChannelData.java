@@ -1,31 +1,34 @@
 package net.cyberkatyusha.aggressionstopper.model;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
 import java.time.Instant;
+import java.util.concurrent.Future;
 
 public class SocketChannelData {
 
-    private SocketChannel socketChannel;
+    private AsynchronousSocketChannel socketChannel;
     private ByteBuffer byteBuffer;
     private SocketChannelStatus status;
     private Instant connectionStart;
     private Instant dataWriteStart;
+    private Future<Void> connectionStatus;
+    private Future<Integer> writeStatus;
 
     public SocketChannelData() {
     }
 
-    public SocketChannelData(SocketChannel socketChannel, ByteBuffer byteBuffer, SocketChannelStatus status) {
+    public SocketChannelData(AsynchronousSocketChannel socketChannel, ByteBuffer byteBuffer, SocketChannelStatus status) {
         this.socketChannel = socketChannel;
         this.byteBuffer = byteBuffer;
         this.status = status;
     }
 
-    public SocketChannel getSocketChannel() {
+    public AsynchronousSocketChannel getSocketChannel() {
         return socketChannel;
     }
 
-    public void setSocketChannel(SocketChannel socketChannel) {
+    public void setSocketChannel(AsynchronousSocketChannel socketChannel) {
         this.socketChannel = socketChannel;
     }
 
@@ -59,5 +62,21 @@ public class SocketChannelData {
 
     public void setDataWriteStart(Instant dataWriteStart) {
         this.dataWriteStart = dataWriteStart;
+    }
+
+    public Future<Void> getConnectionStatus() {
+        return connectionStatus;
+    }
+
+    public void setConnectionStatus(Future<Void> connectionStatus) {
+        this.connectionStatus = connectionStatus;
+    }
+
+    public Future<Integer> getWriteStatus() {
+        return writeStatus;
+    }
+
+    public void setWriteStatus(Future<Integer> writeStatus) {
+        this.writeStatus = writeStatus;
     }
 }
